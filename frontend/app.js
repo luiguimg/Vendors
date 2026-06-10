@@ -131,8 +131,7 @@ async function refreshAll() {
     renderOverview();
     renderPOList();
     renderASNSection();
-    renderCPSection();
-    await Promise.all([renderDocuments(), renderCFDIs(), renderStatement()]);
+    await Promise.all([renderCPSection(), renderDocuments(), renderCFDIs(), renderStatement()]);
   } catch (err) {
     if (err.message !== "Sesión expirada") toast(err.message, true);
   }
@@ -362,48 +361,53 @@ document.getElementById("asn-form").addEventListener("submit", async (e) => {
   } catch (err) { toast(err.message, true); }
 });
 
-/* ─── Carta Porte ────────────────────────────────────────────────────── */
+/* ─── Carta Porte (carga de XML timbrado externamente) ──────────────── */
 
-function renderCPSection() {
-  const eligible = asns.filter((a) => a.shipment_type === "nacional" &&
-    (!a.carta_porte || a.carta_porte.status !== "timbrada"));
-  document.getElementById("cp-asn").innerHTML = eligible.length
-    ? eligible.map((a) => `<option value="${a.id}">${esc(a.number)} — OC ${esc(a.po_number)}</option>`).join("")
-    : '<option value="">(sin ASN nacionales pendientes)</option>';
+async function renderCPSection() {
+  // Pedidos activos que pueden requerir Carta Porte
+  const eligible = purchaseOrders.filter((po) =>
+    ["confirmada", "en_produccion", "embarcada", "recibida"].includes(po.status));
+  document.getElementById("cp-pos").innerHTML = eligible
+    .map((po) => `<option value="${esc(po.number)}">${esc(po.number)} — ${badgeText(po.status)}</option>`).join("");
 
-  const stamped = asns.filter((a) => a.carta_porte);
-  document.getElementById("cp-list").innerHTML = stamped.length
+  const cps = await api("/documents?doc_type=carta_porte");
+  document.getElementById("cp-list").innerHTML = cps.length
     ? `<table class="status-table">
-        <thead><tr><th>ASN</th><th>OC</th><th>Folio fiscal (UUID)</th><th>Timbrada</th><th>Estatus</th></tr></thead>
-        <tbody>${stamped.map((a) => `
-          <tr><td>${esc(a.number)}</td><td>${esc(a.po_number)}</td>
-          <td><code class="inline">${esc(a.carta_porte.cfdi_uuid || "—")}</code></td>
-          <td>${a.carta_porte.stamped_at ? new Date(a.carta_porte.stamped_at).toLocaleString("es-MX") : "—"}</td>
-          <td>${badge(a.carta_porte.status)}</td></tr>`).join("")}
+        <thead><tr><th>Archivo</th><th>Pedidos que ampara</th><th>Folio fiscal (UUID)</th><th>Cargada</th><th>Estatus</th><th></th></tr></thead>
+        <tbody>${cps.map((d) => `
+          <tr><td>${esc(d.filename)}</td>
+          <td>${d.po_numbers.map((n) => `<code class="inline">${esc(n)}</code>`).join(" ")}</td>
+          <td>${d.cfdi_uuid ? `<code class="inline">${esc(d.cfdi_uuid)}</code>` : "—"}</td>
+          <td>${new Date(d.uploaded_at).toLocaleString("es-MX")}</td>
+          <td>${badge(d.status)}${d.rejection_reason ? `<div style="font-size:11px;color:var(--red)">${esc(d.rejection_reason)}</div>` : ""}</td>
+          <td><a class="btn btn-secondary btn-sm" href="#" onclick="return downloadDoc(event, ${d.id}, '${esc(d.filename)}')">Descargar</a></td></tr>`).join("")}
         </tbody></table>`
-    : '<div class="empty">Sin Cartas Porte generadas.</div>';
+    : '<div class="empty">Sin Cartas Porte cargadas.</div>';
+}
+
+function badgeText(s) {
+  return (STATUS_LABELS[s] || [s])[0];
 }
 
 document.getElementById("cp-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const asnId = Number(document.getElementById("cp-asn").value);
-  if (!asnId) return toast("Selecciona un ASN nacional", true);
+  const selected = [...document.getElementById("cp-pos").selectedOptions].map((o) => o.value);
+  const fileInput = document.getElementById("cp-file");
+  if (!selected.length) return toast("Selecciona el pedido o grupo de pedidos que ampara", true);
+  if (!fileInput.files.length) return toast("Adjunta el XML timbrado", true);
+
+  const form = new FormData();
+  form.append("po_numbers", selected.join(","));
+  form.append("doc_type", "carta_porte");
+  form.append("file", fileInput.files[0]);
   try {
-    const cp = await api("/carta-porte", { method: "POST", body: {
-      asn_id: asnId,
-      carrier_rfc: document.getElementById("cp-carrier-rfc").value.toUpperCase(),
-      driver_rfc: document.getElementById("cp-driver-rfc").value.toUpperCase() || null,
-      vehicle_plate: document.getElementById("cp-plate").value,
-      vehicle_year: Number(document.getElementById("cp-year").value) || null,
-      vehicle_config: document.getElementById("cp-config").value || null,
-      origin_address: document.getElementById("cp-origin").value,
-      destination_address: document.getElementById("cp-dest").value,
-      insurance_company: document.getElementById("cp-insurer").value || null,
-      insurance_policy: document.getElementById("cp-policy").value || null,
-    }});
-    toast(`Carta Porte timbrada — Folio: ${cp.cfdi_uuid}`);
+    const doc = await api("/documents", { method: "POST", body: form });
+    toast(doc.cfdi_uuid
+      ? `Carta Porte validada — Folio fiscal: ${doc.cfdi_uuid}`
+      : "Carta Porte cargada; en validación por Natureganix");
     e.target.reset();
-    await refreshAll();
+    renderCPSection();
+    renderDocuments();
   } catch (err) { toast(err.message, true); }
 });
 
@@ -415,10 +419,13 @@ async function renderDocuments() {
   const docs = await api("/documents");
   document.getElementById("doc-list").innerHTML = docs.length
     ? `<table class="status-table">
-        <thead><tr><th>OC</th><th>Tipo</th><th>Archivo</th><th>Cargado</th><th>Estatus</th><th></th></tr></thead>
+        <thead><tr><th>Pedido(s)</th><th>Tipo</th><th>Archivo</th><th>Folio fiscal</th><th>Cargado</th><th>Estatus</th><th></th></tr></thead>
         <tbody>${docs.map((d) => `
-          <tr><td>${esc(d.po_number)}</td><td>${esc(d.doc_type.replace(/_/g, " "))}</td>
-          <td>${esc(d.filename)}</td><td>${new Date(d.uploaded_at).toLocaleString("es-MX")}</td>
+          <tr><td>${d.po_numbers.map((n) => `<code class="inline">${esc(n)}</code>`).join(" ")}</td>
+          <td>${esc(d.doc_type.replace(/_/g, " "))}</td>
+          <td>${esc(d.filename)}</td>
+          <td>${d.cfdi_uuid ? `<code class="inline" title="${esc(d.cfdi_uuid)}">${esc(d.cfdi_uuid.slice(0, 8))}…</code>` : "—"}</td>
+          <td>${new Date(d.uploaded_at).toLocaleString("es-MX")}</td>
           <td>${badge(d.status)}${d.rejection_reason ? `<div style="font-size:11px;color:var(--red)">${esc(d.rejection_reason)}</div>` : ""}</td>
           <td><a class="btn btn-secondary btn-sm" href="${API}/documents/${d.id}/download" onclick="return downloadDoc(event, ${d.id}, '${esc(d.filename)}')">Descargar</a></td></tr>`).join("")}
         </tbody></table>`
@@ -443,8 +450,10 @@ document.getElementById("doc-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const fileInput = document.getElementById("doc-file");
   if (!fileInput.files.length) return;
+  const selectedPOs = [...document.getElementById("doc-po").selectedOptions].map((o) => o.value);
+  if (!selectedPOs.length) return toast("Selecciona al menos un pedido", true);
   const form = new FormData();
-  form.append("po_number", document.getElementById("doc-po").value);
+  form.append("po_numbers", selectedPOs.join(","));
   form.append("doc_type", document.getElementById("doc-type").value);
   form.append("file", fileInput.files[0]);
   try {

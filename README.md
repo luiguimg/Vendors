@@ -47,8 +47,7 @@ Variables de entorno: `PORT`, `HOST`, `DATABASE_URL` (por defecto SQLite local),
 | Autenticación | `POST /auth/login`, `/auth/logout`, `GET /auth/me` | Sesión del proveedor |
 | Órdenes de compra | `GET /purchase-orders`, `POST /{id}/respond`, `POST /{id}/confirm-date`, `POST /{id}/status` | Aceptar/rechazar/solicitar cambio; confirmar o proponer fecha; marcar producción |
 | Embarques | `GET/POST /asn` | ASN con líneas, transportista y ETA; valida SKUs contra la OC |
-| Carta Porte | `POST /carta-porte` | Validación de datos (RFC, placa, ubicaciones) y timbrado simulado vía PAC (folio fiscal UUID) |
-| Documentos | `GET/POST /documents`, `GET /documents/{id}/download` | Expediente digital por OC (packing list, certificados, pedimentos…) |
+| Documentos / Carta Porte | `GET/POST /documents`, `GET /documents/{id}/download` | Expediente digital por **pedido o grupo de pedidos**. La Carta Porte se timbra fuera del portal: el proveedor carga el XML timbrado y el portal valida estructura, complemento y timbre, extrae el folio fiscal (UUID) y rechaza duplicados |
 | CFDI | `GET/POST /cfdi` | Validación de UUID, duplicados, método de pago y **3-way match** (OC vs recibo vs factura) |
 | Estado de cuenta | `GET /account-statement` | Saldos, vencimientos, pagos y Complementos de Pago (REP) |
 
@@ -103,8 +102,9 @@ curl -X POST http://localhost:8000/api/erp/v1/webhooks \
 ```
 
 Eventos: `po.confirmed`, `po.rejected`, `po.change_requested`, `po.date_confirmed`,
-`po.date_proposed`, `po.status_changed`, `asn.created`, `carta_porte.stamped`,
-`document.uploaded`, `cfdi.uploaded`, `cfdi.approved`, `cfdi.rejected`.
+`po.date_proposed`, `po.status_changed`, `asn.created`, `document.uploaded`
+(incluye `cfdi_uuid` si el documento es una Carta Porte o CFDI), `cfdi.uploaded`,
+`cfdi.approved`, `cfdi.rejected`.
 
 Cada entrega incluye los headers `X-Portal-Event` y `X-Portal-Signature`
 (HMAC-SHA256 del cuerpo con el secreto de la suscripción) y se registra en la
@@ -128,9 +128,12 @@ run.py                 # python run.py → http://localhost:8000
 
 ## Notas de implementación
 
-- El timbrado de Carta Porte y la validación de CFDI ante el SAT están **simulados**;
-  en producción se sustituyen por la integración con un PAC y el servicio de
-  verificación del SAT (los puntos de extensión están en `routers/carta_porte.py`
-  y `routers/cfdi.py`).
+- El portal **no genera ni timbra** CFDIs de traslado / Carta Porte: el proveedor
+  los timbra con su PAC y los carga como documentación del pedido o grupo de
+  pedidos. El portal valida la estructura del XML (CFDI tipo T/I, complemento
+  Carta Porte, Timbre Fiscal Digital) y extrae el UUID (`routers/documents.py`).
+- La verificación del estatus del CFDI ante el SAT está **simulada**; en
+  producción se sustituye por el servicio de verificación del SAT
+  (punto de extensión en `routers/cfdi.py`).
 - La autenticación usa tokens de sesión y hash de contraseñas simples para la demo;
   para producción se recomienda OAuth2/OIDC (p. ej. Entra ID) y `bcrypt`/`argon2`.

@@ -171,31 +171,25 @@
     <div id="cartaporte" class="section">
       <div class="page-hdr">
         <h1>Carta Porte (Complemento CFDI)</h1>
-        <p>Obligatoria ante el SAT para traslados nacionales por carretera. Captura los datos, el portal valida y timbra vía PAC antes del inicio del traslado.</p>
+        <p>El timbrado se realiza fuera del portal, con tu PAC. Aquí cargas el <strong>XML ya timbrado</strong> (CFDI de Traslado o Ingreso con complemento Carta Porte) como parte de la documentación del pedido o grupo de pedidos que ampara el traslado. El portal valida la estructura, el timbre fiscal y extrae el folio fiscal (UUID).</p>
       </div>
       <div class="card">
         <div class="card-hdr">
           <div class="card-icon">&#128652;</div>
-          <div><div class="card-title">Generar y timbrar Carta Porte</div><div class="card-sub">Solo para ASN de embarques nacionales</div></div>
+          <div><div class="card-title">Cargar Carta Porte timbrada</div><div class="card-sub">XML timbrado por tu PAC (o su representación impresa en PDF). Puede amparar varios pedidos del mismo embarque.</div></div>
         </div>
         <form id="cp-form" class="form-grid">
-          <div class="form-field"><label>ASN</label><select id="cp-asn" required></select></div>
-          <div class="form-field"><label>RFC transportista</label><input id="cp-carrier-rfc" required placeholder="ABC123456XY9" /></div>
-          <div class="form-field"><label>RFC operador</label><input id="cp-driver-rfc" /></div>
-          <div class="form-field"><label>Placa</label><input id="cp-plate" required /></div>
-          <div class="form-field"><label>Año vehículo</label><input id="cp-year" type="number" min="1990" max="2030" /></div>
-          <div class="form-field"><label>Config. vehicular (SCT)</label><input id="cp-config" placeholder="C2, T3S2..." /></div>
-          <div class="form-field full"><label>Dirección origen</label><input id="cp-origin" required /></div>
-          <div class="form-field full"><label>Dirección destino</label><input id="cp-dest" required /></div>
-          <div class="form-field"><label>Aseguradora</label><input id="cp-insurer" /></div>
-          <div class="form-field"><label>Póliza</label><input id="cp-policy" /></div>
-          <div class="form-actions full"><button type="submit" class="btn btn-primary">Validar y timbrar ante SAT</button></div>
+          <div class="form-field full"><label>Pedido(s) que ampara — usa Ctrl/Cmd para seleccionar varios</label>
+            <select id="cp-pos" multiple size="5" required></select>
+          </div>
+          <div class="form-field full"><label>Archivo XML timbrado (o PDF)</label><input id="cp-file" type="file" accept=".xml,.pdf" required /></div>
+          <div class="form-actions full"><button type="submit" class="btn btn-primary">Cargar y validar</button></div>
         </form>
       </div>
       <div class="card">
         <div class="card-hdr">
           <div class="card-icon">&#128196;</div>
-          <div><div class="card-title">Cartas Porte emitidas</div></div>
+          <div><div class="card-title">Cartas Porte cargadas</div></div>
         </div>
         <div id="cp-list"></div>
       </div>
@@ -213,13 +207,13 @@
           <div><div class="card-title">Cargar documento</div></div>
         </div>
         <form id="doc-form" class="form-grid">
-          <div class="form-field"><label>Orden de compra</label><select id="doc-po" required></select></div>
+          <div class="form-field"><label>Pedido(s) — usa Ctrl/Cmd para varios</label><select id="doc-po" multiple size="4" required></select></div>
           <div class="form-field"><label>Tipo de documento</label>
             <select id="doc-type">
               <option value="packing_list">Packing List</option>
               <option value="certificado_calidad">Certificado de Calidad</option>
               <option value="cfdi_ingreso">CFDI Ingreso (PDF)</option>
-              <option value="carta_porte">Carta Porte (PDF)</option>
+              <option value="carta_porte">Carta Porte (XML timbrado / PDF)</option>
               <option value="bl_awb">Bill of Lading / AWB</option>
               <option value="pedimento">Pedimento</option>
               <option value="permiso_sanitario">Permiso Sanitario / COFEPRIS</option>
@@ -331,8 +325,7 @@
           <div class="pill"><strong>po.change_requested</strong>Solicitud de modificación</div>
           <div class="pill"><strong>po.date_confirmed / po.date_proposed</strong>Gestión de fechas de entrega</div>
           <div class="pill"><strong>asn.created</strong>Nuevo embarque notificado</div>
-          <div class="pill"><strong>carta_porte.stamped</strong>Carta Porte timbrada (folio fiscal)</div>
-          <div class="pill"><strong>document.uploaded</strong>Documento cargado al expediente</div>
+          <div class="pill"><strong>document.uploaded</strong>Documento cargado al expediente (incluye folio fiscal si es Carta Porte/CFDI)</div>
           <div class="pill"><strong>cfdi.approved / cfdi.rejected</strong>Resultado del 3-way match</div>
         </div>
         <pre class="code-block"># Ejemplo: publicar una OC desde el ERP

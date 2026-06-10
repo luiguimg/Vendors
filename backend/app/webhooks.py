@@ -2,8 +2,9 @@
 
 Eventos emitidos:
   po.confirmed, po.rejected, po.change_requested, po.date_confirmed,
-  po.date_proposed, po.status_changed, asn.created, carta_porte.stamped,
-  document.uploaded, cfdi.uploaded, cfdi.approved, cfdi.rejected
+  po.date_proposed, po.status_changed, asn.created,
+  document.uploaded (incluye cfdi_uuid si es Carta Porte/CFDI),
+  cfdi.uploaded, cfdi.approved, cfdi.rejected
 Cada entrega se firma con HMAC-SHA256 en el header `X-Portal-Signature`.
 """
 import hashlib

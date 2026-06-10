@@ -3,7 +3,8 @@ import enum
 from datetime import datetime, date
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text,
+    Boolean, Column, Date, DateTime, Enum, Float, ForeignKey, Integer, String,
+    Table, Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,13 +30,6 @@ class ASNStatus(str, enum.Enum):
     ENVIADO = "enviado"
     EN_TRANSITO = "en_transito"
     RECIBIDO = "recibido"
-
-
-class CartaPorteStatus(str, enum.Enum):
-    BORRADOR = "borrador"
-    TIMBRADA = "timbrada"
-    RECHAZADA = "rechazada"
-    CANCELADA = "cancelada"
 
 
 class DocumentStatus(str, enum.Enum):
@@ -115,7 +109,9 @@ class PurchaseOrder(Base):
     vendor: Mapped["Vendor"] = relationship(back_populates="purchase_orders")
     lines: Mapped[list["POLine"]] = relationship(back_populates="po", cascade="all, delete-orphan")
     asns: Mapped[list["ASN"]] = relationship(back_populates="po")
-    documents: Mapped[list["Document"]] = relationship(back_populates="po")
+    documents: Mapped[list["Document"]] = relationship(
+        secondary="document_purchase_orders", back_populates="pos",
+    )
     cfdis: Mapped[list["CFDI"]] = relationship(back_populates="po")
 
 
@@ -161,7 +157,6 @@ class ASN(Base):
 
     po: Mapped["PurchaseOrder"] = relationship(back_populates="asns")
     lines: Mapped[list["ASNLine"]] = relationship(back_populates="asn", cascade="all, delete-orphan")
-    carta_porte: Mapped["CartaPorte | None"] = relationship(back_populates="asn", uselist=False)
 
 
 class ASNLine(Base):
@@ -177,50 +172,42 @@ class ASNLine(Base):
     asn: Mapped["ASN"] = relationship(back_populates="lines")
 
 
-class CartaPorte(Base):
-    """Complemento Carta Porte 3.1 sobre CFDI de traslado/ingreso."""
-    __tablename__ = "cartas_porte"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    asn_id: Mapped[int] = mapped_column(ForeignKey("asns.id"), unique=True, index=True)
-    status: Mapped[CartaPorteStatus] = mapped_column(Enum(CartaPorteStatus), default=CartaPorteStatus.BORRADOR)
-    cfdi_uuid: Mapped[str | None] = mapped_column(String(36), index=True)  # folio fiscal tras timbrado
-    transport_type: Mapped[str] = mapped_column(String(50), default="Autotransporte Federal")
-    carrier_rfc: Mapped[str] = mapped_column(String(13))
-    driver_rfc: Mapped[str | None] = mapped_column(String(13))
-    vehicle_plate: Mapped[str] = mapped_column(String(15))
-    vehicle_year: Mapped[int | None] = mapped_column(Integer)
-    vehicle_config: Mapped[str | None] = mapped_column(String(10))  # config vehicular SCT
-    origin_address: Mapped[str] = mapped_column(String(300))
-    destination_address: Mapped[str] = mapped_column(String(300))
-    insurance_company: Mapped[str | None] = mapped_column(String(150))
-    insurance_policy: Mapped[str | None] = mapped_column(String(50))
-    stamped_at: Mapped[datetime | None] = mapped_column(DateTime)
-    rejection_reason: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    asn: Mapped["ASN"] = relationship(back_populates="carta_porte")
-
-
 # ─── Documentación y CFDI ────────────────────────────────────────────────────
 
+document_purchase_orders = Table(
+    "document_purchase_orders",
+    Base.metadata,
+    Column("document_id", ForeignKey("documents.id"), primary_key=True),
+    Column("po_id", ForeignKey("purchase_orders.id"), primary_key=True),
+)
+
+
 class Document(Base):
-    """Expediente digital de la OC: packing list, certificados, pedimentos, etc."""
+    """Expediente digital: packing list, certificados, pedimentos, Carta Porte, etc.
+
+    Un documento puede amparar un pedido o un grupo de pedidos (p. ej. una
+    Carta Porte consolidada que cubre varias OC en un mismo embarque).
+    Los CFDI de traslado / Carta Porte se timbran fuera del portal: el
+    proveedor carga aquí el XML ya timbrado y el portal valida su estructura
+    y extrae el folio fiscal (UUID).
+    """
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    po_id: Mapped[int] = mapped_column(ForeignKey("purchase_orders.id"), index=True)
     vendor_id: Mapped[int] = mapped_column(ForeignKey("vendors.id"), index=True)
-    doc_type: Mapped[str] = mapped_column(String(50))  # packing_list, certificado_calidad, pedimento, bl_awb, ...
+    doc_type: Mapped[str] = mapped_column(String(50))  # packing_list, carta_porte, pedimento, ...
     filename: Mapped[str] = mapped_column(String(255))
     content_type: Mapped[str] = mapped_column(String(100), default="application/octet-stream")
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     storage_path: Mapped[str] = mapped_column(String(500))
+    cfdi_uuid: Mapped[str | None] = mapped_column(String(36), index=True)  # folio fiscal del XML cargado
     status: Mapped[DocumentStatus] = mapped_column(Enum(DocumentStatus), default=DocumentStatus.EN_VALIDACION)
     rejection_reason: Mapped[str | None] = mapped_column(Text)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    po: Mapped["PurchaseOrder"] = relationship(back_populates="documents")
+    pos: Mapped[list["PurchaseOrder"]] = relationship(
+        secondary=document_purchase_orders, back_populates="documents",
+    )
 
 
 class CFDI(Base):

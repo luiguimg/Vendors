@@ -11,9 +11,8 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from .models import (
-    ASN, ASNLine, ApiKey, CartaPorte, CartaPorteStatus, CFDI, CFDIStatus,
-    CFDIType, Document, DocumentStatus, Payment, POLine, POStatus,
-    PurchaseOrder, Vendor,
+    ASN, ASNLine, ApiKey, CFDI, CFDIStatus, CFDIType, Document,
+    DocumentStatus, Payment, POLine, POStatus, PurchaseOrder, Vendor,
 )
 from .security import hash_api_key, hash_password
 
@@ -160,48 +159,72 @@ def seed(db: Session) -> None:
     db.add_all([asn_nacional, asn_internacional])
     db.flush()
 
-    db.add(CartaPorte(
-        asn_id=asn_nacional.id,
-        status=CartaPorteStatus.TIMBRADA,
-        cfdi_uuid="C4F3A2B1-9D8E-4C7B-A615-2F3E4D5C6B7A",
-        carrier_rfc="TBA010101AB1",
-        driver_rfc="HEJL850214XY9",
-        vehicle_plate="ABC-123-X",
-        vehicle_year=2022,
-        vehicle_config="T3S2",
-        origin_address="Carretera Celaya-Salamanca km 12, Celaya, Guanajuato, MX",
-        destination_address="Av. Industrial 450, Parque Ind. Querétaro, Querétaro, MX",
-        insurance_company="Seguros Atlas",
-        insurance_policy="POL-778812",
-        stamped_at=now - timedelta(hours=7),
-    ))
-
     # ─── Expediente documental ───────────────────────────────────────────
+    # La Carta Porte se timbra fuera del portal: el proveedor carga el XML
+    # ya timbrado. Un documento puede amparar un pedido o un grupo de pedidos.
+    def carta_porte_xml(uuid_: str, plate: str) -> str:
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
+    xmlns:cartaporte31="http://www.sat.gob.mx/CartaPorte31"
+    Version="4.0" TipoDeComprobante="T" Fecha="{(now - timedelta(hours=7)).isoformat()}"
+    LugarExpedicion="38000">
+  <cfdi:Emisor Rfc="IOB150612AB1" Nombre="Insumos Organicos del Bajio" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="IOB150612AB1" Nombre="Insumos Organicos del Bajio" UsoCFDI="S01"
+      DomicilioFiscalReceptor="38000" RegimenFiscalReceptor="601"/>
+  <cfdi:Complemento>
+    <cartaporte31:CartaPorte Version="3.1" TranspInternac="No" TotalDistRec="185">
+      <cartaporte31:Mercancias PesoBrutoTotal="2070" UnidadPeso="KGM" NumTotalMercancias="1">
+        <cartaporte31:Autotransporte PermSCT="TPAF01" NumPermisoSCT="DEMO-001">
+          <cartaporte31:IdentificacionVehicular ConfigVehicular="T3S2"
+              PlacaVM="{plate}" AnioModeloVM="2022"/>
+        </cartaporte31:Autotransporte>
+      </cartaporte31:Mercancias>
+    </cartaporte31:CartaPorte>
+    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
+        Version="1.1" UUID="{uuid_}" FechaTimbrado="{(now - timedelta(hours=7)).isoformat()}"/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>
+"""
+
     docs = [
-        ("packing_list", "Packing-List-ASN-00001.txt", DocumentStatus.APROBADO, None, po_embarcada,
+        # (doc_type, filename, status, motivo_rechazo, [pedidos], cfdi_uuid, contenido)
+        ("carta_porte", "CartaPorte-OC-2026-0090.xml", DocumentStatus.APROBADO, None,
+         [po_embarcada], "C4F3A2B1-9D8E-4C7B-A615-2F3E4D5C6B7A",
+         carta_porte_xml("C4F3A2B1-9D8E-4C7B-A615-2F3E4D5C6B7A", "ABC-123-X")),
+        # Carta Porte consolidada: un solo traslado ampara dos pedidos
+        ("carta_porte", "CartaPorte-Consolidada-0085-0088.xml", DocumentStatus.EN_VALIDACION, None,
+         [po_recibida, po_recibida2], "D5E4F3A2-1B0C-4D9E-B726-3A4B5C6D7E8F",
+         carta_porte_xml("D5E4F3A2-1B0C-4D9E-B726-3A4B5C6D7E8F", "XYZ-987-A")),
+        ("packing_list", "Packing-List-ASN-00001.txt", DocumentStatus.APROBADO, None,
+         [po_embarcada], None,
          "PACKING LIST — ASN-00001\nOC-2026-0090 · 30 sacos café orgánico 69 kg · 15 pallets · 2,070 kg"),
-        ("certificado_calidad", "Certificado-Calidad-Cafe.txt", DocumentStatus.APROBADO, None, po_embarcada,
+        ("certificado_calidad", "Certificado-Calidad-Cafe.txt", DocumentStatus.APROBADO, None,
+         [po_embarcada], None,
          "CERTIFICADO DE ANÁLISIS\nLote CAF-2026-118 · Humedad 11.2% · Sin residuos detectados · Cumple NOM"),
-        ("cfdi_ingreso", "Factura-A-1042.txt", DocumentStatus.APROBADO, None, po_recibida,
+        ("cfdi_ingreso", "Factura-A-1042.txt", DocumentStatus.APROBADO, None,
+         [po_recibida], None,
          "REPRESENTACIÓN IMPRESA CFDI — Serie A Folio 1042\nTotal: $176,000.00 MXN"),
-        ("pedimento", "Pedimento-3801-6004421.txt", DocumentStatus.EN_VALIDACION, None, po_recibida,
+        ("pedimento", "Pedimento-3801-6004421.txt", DocumentStatus.EN_VALIDACION, None,
+         [po_recibida], None,
          "PEDIMENTO DE IMPORTACIÓN 26 48 3801 6004421\nAduana: Manzanillo · Régimen: A1"),
         ("certificado_calidad", "Certificado-Vainilla.txt", DocumentStatus.RECHAZADO,
-         "El certificado no incluye el número de lote; reemitir con lote VAI-2026-077.", po_recibida2,
+         "El certificado no incluye el número de lote; reemitir con lote VAI-2026-077.",
+         [po_recibida2], None,
          "CERTIFICADO DE ANÁLISIS — Extracto de vainilla (sin número de lote)"),
     ]
-    for doc_type, filename, doc_status, reason, po, content in docs:
+    for doc_type, filename, doc_status, reason, pos, cfdi_uuid, content in docs:
         path = _demo_file(filename, content)
         db.add(Document(
-            po_id=po.id,
             vendor_id=vendor.id,
             doc_type=doc_type,
             filename=filename,
-            content_type="text/plain",
+            content_type="text/xml" if filename.endswith(".xml") else "text/plain",
             size_bytes=os.path.getsize(path),
             storage_path=path,
+            cfdi_uuid=cfdi_uuid,
             status=doc_status,
             rejection_reason=reason,
+            pos=pos,
         ))
 
     # ─── CFDIs en cada etapa del flujo ───────────────────────────────────

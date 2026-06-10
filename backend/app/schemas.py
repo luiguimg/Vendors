@@ -3,9 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import (
-    ASNStatus, CartaPorteStatus, CFDIStatus, CFDIType, DocumentStatus, POStatus,
-)
+from .models import ASNStatus, CFDIStatus, CFDIType, DocumentStatus, POStatus
 
 
 class ORMModel(BaseModel):
@@ -155,23 +153,6 @@ class ASNIn(BaseModel):
     lines: list[ASNLineIn]
 
 
-class CartaPorteOut(ORMModel):
-    id: int
-    status: CartaPorteStatus
-    cfdi_uuid: str | None
-    transport_type: str
-    carrier_rfc: str
-    vehicle_plate: str
-    vehicle_year: int | None
-    vehicle_config: str | None
-    origin_address: str
-    destination_address: str
-    insurance_company: str | None
-    insurance_policy: str | None
-    stamped_at: datetime | None
-    rejection_reason: str | None
-
-
 class ASNOut(ORMModel):
     id: int
     number: str
@@ -189,24 +170,7 @@ class ASNOut(ORMModel):
     erp_acknowledged: bool
     created_at: datetime
     lines: list[ASNLineOut] = []
-    carta_porte: CartaPorteOut | None = None
     po_number: str | None = None
-
-
-# ─── Carta Porte ─────────────────────────────────────────────────────────────
-
-class CartaPorteIn(BaseModel):
-    asn_id: int
-    transport_type: str = "Autotransporte Federal"
-    carrier_rfc: str
-    driver_rfc: str | None = None
-    vehicle_plate: str
-    vehicle_year: int | None = None
-    vehicle_config: str | None = None
-    origin_address: str
-    destination_address: str
-    insurance_company: str | None = None
-    insurance_policy: str | None = None
 
 
 # ─── Documentos ──────────────────────────────────────────────────────────────
@@ -217,10 +181,11 @@ class DocumentOut(ORMModel):
     filename: str
     content_type: str
     size_bytes: int
+    cfdi_uuid: str | None  # folio fiscal extraído del XML (Carta Porte / CFDI)
     status: DocumentStatus
     rejection_reason: str | None
     uploaded_at: datetime
-    po_number: str | None = None
+    po_numbers: list[str] = []  # pedido o grupo de pedidos que ampara
 
 
 class DocumentReviewIn(BaseModel):

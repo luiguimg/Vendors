@@ -30,6 +30,7 @@ from ..schemas import (
 from ..security import get_erp_client, hash_password
 from ..webhooks import dispatch_event
 from ..models import Payment
+from .documents import serialize as serialize_document
 
 router = APIRouter(
     prefix="/api/erp/v1",
@@ -177,21 +178,19 @@ def acknowledge_asn(asn_id: int, db: Session = Depends(get_db)):
 @router.get("/documents", response_model=list[DocumentOut])
 def pull_documents(
     po_number: str | None = None,
+    doc_type: str | None = Query(default=None, description="p. ej. carta_porte"),
     pending: bool = Query(default=False, description="Solo documentos en validación"),
     db: Session = Depends(get_db),
 ):
+    """Documentos del expediente (un documento puede amparar varios pedidos)."""
     q = db.query(Document)
     if po_number:
-        q = q.join(PurchaseOrder).filter(PurchaseOrder.number == po_number)
+        q = q.join(Document.pos).filter(PurchaseOrder.number == po_number)
+    if doc_type:
+        q = q.filter(Document.doc_type == doc_type)
     if pending:
         q = q.filter(Document.status == "en_validacion")
-    docs = q.order_by(Document.uploaded_at.desc()).all()
-    out = []
-    for d in docs:
-        item = DocumentOut.model_validate(d)
-        item.po_number = d.po.number
-        out.append(item)
-    return out
+    return [serialize_document(d) for d in q.order_by(Document.uploaded_at.desc()).all()]
 
 
 @router.patch("/documents/{doc_id}/review", response_model=DocumentOut)
@@ -204,9 +203,7 @@ def review_document(doc_id: int, payload: DocumentReviewIn, db: Session = Depend
     doc.rejection_reason = payload.rejection_reason
     db.commit()
     db.refresh(doc)
-    item = DocumentOut.model_validate(doc)
-    item.po_number = doc.po.number
-    return item
+    return serialize_document(doc)
 
 
 # ─── CFDI → Cuentas por Pagar ────────────────────────────────────────────────

@@ -13,14 +13,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .database import Base, SessionLocal, engine
-from .routers import asn, auth, carta_porte, cfdi, documents, erp, payments, purchase_orders
+from .routers import asn, auth, cfdi, documents, erp, payments, purchase_orders
 from .seed import seed
 
 app = FastAPI(
     title="Portal de Proveedores — Natureganix",
     description=(
         "Plataforma de colaboración con proveedores: órdenes de compra, "
-        "confirmación de fechas, embarques (ASN), Carta Porte, CFDI y estado de cuenta.\n\n"
+        "confirmación de fechas, embarques (ASN), documentación (incluida la Carta Porte "
+        "timbrada externamente), CFDI y estado de cuenta.\n\n"
         "**Integración ERP**: los endpoints bajo `/api/erp/v1` están diseñados para "
         "conectarse con Business Central u otros ERPs mediante API Key (`X-API-Key`) "
         "y webhooks salientes firmados con HMAC-SHA256."
@@ -35,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (auth, purchase_orders, asn, carta_porte, documents, cfdi, payments, erp):
+for module in (auth, purchase_orders, asn, documents, cfdi, payments, erp):
     app.include_router(module.router)
 
 
