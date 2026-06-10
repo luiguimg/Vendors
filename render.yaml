@@ -1,0 +1,18 @@
+# Blueprint de Render — despliegue gratuito del Portal de Proveedores
+# Uso: en https://render.com → New → Blueprint → conectar este repositorio
+services:
+  - type: web
+    name: portal-proveedores
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      # En el plan gratuito el sistema de archivos es efímero: la base SQLite
+      # se regenera con datos demo en cada reinicio (ideal para demostración).
+      - key: DATABASE_URL
+        value: sqlite:////tmp/portal_proveedores.db
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
