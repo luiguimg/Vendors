@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal de Proveedores &mdash; Natureganix</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ─── LOGIN ──────────────────────────────────────────────────────────── -->
+<div id="login-view" class="login-wrap" style="display:none">
+  <div class="login-card">
+    <div class="hdr-logo">PP</div>
+    <h1>Portal de Proveedores</h1>
+    <p>Natureganix &mdash; Acceso para proveedores registrados</p>
+    <div id="login-error" class="alert alert-err" style="display:none"></div>
+    <form id="login-form">
+      <div class="form-field">
+        <label>Correo electrónico</label>
+        <input type="email" id="login-email" required autocomplete="username" />
+      </div>
+      <div class="form-field">
+        <label>Contraseña</label>
+        <input type="password" id="login-password" required autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn btn-primary">Iniciar sesión</button>
+    </form>
+    <div class="login-hint">
+      <strong>Demo:</strong> proveedor@demo.com / demo123<br/>
+      API ERP: header <code>X-API-Key</code> &middot; documentación en <a href="/docs" target="_blank">/docs</a>
+    </div>
+  </div>
+</div>
+
+<!-- ─── APP ────────────────────────────────────────────────────────────── -->
+<div id="app-view" style="display:none; flex-direction:column; height:100vh;">
+<header>
+  <div class="hdr-logo">PP</div>
+  <span class="hdr-title">Portal de Proveedores</span>
+  <span class="hdr-sep">|</span>
+  <span class="hdr-sub">Natureganix &mdash; Flujos Operativos y Gestión Documental</span>
+  <div class="hdr-right">
+    <span class="hdr-vendor" id="hdr-vendor"></span>
+    <span class="hdr-badge">v1.0</span>
+    <button class="btn-logout" onclick="logout()">Salir</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-group">
+      <div class="nav-group-label">General</div>
+      <div class="nav-item active" data-section="overview" onclick="showSection('overview')">
+        <span class="nav-icon">&#127968;</span> Resumen del Portal
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Pedidos</div>
+      <div class="nav-item" data-section="oc" onclick="showSection('oc')">
+        <span class="nav-icon">&#128203;</span> Órdenes de Compra
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Embarque</div>
+      <div class="nav-item" data-section="asn" onclick="showSection('asn')">
+        <span class="nav-icon">&#128674;</span> Embarques y ASN
+      </div>
+      <div class="nav-item" data-section="cartaporte" onclick="showSection('cartaporte')">
+        <span class="nav-icon">&#128652;</span> Carta Porte
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Documentación</div>
+      <div class="nav-item" data-section="documentos" onclick="showSection('documentos')">
+        <span class="nav-icon">&#128196;</span> Documentos de Pedido
+      </div>
+      <div class="nav-item" data-section="cfdi" onclick="showSection('cfdi')">
+        <span class="nav-icon">&#128177;</span> Gestión de CFDI
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Finanzas</div>
+      <div class="nav-item" data-section="cxp" onclick="showSection('cxp')">
+        <span class="nav-icon">&#128184;</span> Estado de Cuenta
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Integración</div>
+      <div class="nav-item" data-section="api" onclick="showSection('api')">
+        <span class="nav-icon">&#128268;</span> API para ERP
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Resumen -->
+    <div id="overview" class="section active">
+      <div class="page-hdr">
+        <h1>Resumen del Portal</h1>
+        <p>Plataforma de colaboración entre el proveedor y Business Central: confirmación de órdenes de compra, fechas de entrega, embarques (ASN), documentación fiscal (CFDI, Carta Porte) y consulta de estado de cuenta.</p>
+      </div>
+      <div class="ov-grid" id="ov-kpis"></div>
+      <div class="card" style="margin-top:20px">
+        <div class="card-hdr">
+          <div class="card-icon">&#9889;</div>
+          <div>
+            <div class="card-title">Acciones pendientes</div>
+            <div class="card-sub">Órdenes que requieren tu respuesta</div>
+          </div>
+        </div>
+        <div id="ov-pending"></div>
+      </div>
+    </div>
+
+    <!-- Órdenes de compra -->
+    <div id="oc" class="section">
+      <div class="page-hdr">
+        <h1>Gestión de Órdenes de Compra</h1>
+        <p>Revisa, acepta, rechaza o solicita modificaciones a las órdenes de compra emitidas desde Business Central. Confirma la fecha de entrega comprometida.</p>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128203;</div>
+          <div><div class="card-title">Bandeja de Órdenes de Compra</div></div>
+        </div>
+        <div id="oc-list"></div>
+      </div>
+      <div id="oc-detail"></div>
+    </div>
+
+    <!-- ASN -->
+    <div id="asn" class="section">
+      <div class="page-hdr">
+        <h1>Proceso de Embarque y ASN</h1>
+        <p>Genera el Aviso Anticipado de Embarque (ASN) antes de enviar la mercancía. Natureganix lo usa para crear el recibo esperado en su WMS.</p>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128674;</div>
+          <div><div class="card-title">Crear ASN</div><div class="card-sub">Solo sobre OC confirmadas o en producción</div></div>
+        </div>
+        <form id="asn-form" class="form-grid">
+          <div class="form-field"><label>Orden de compra</label><select id="asn-po" required></select></div>
+          <div class="form-field"><label>Tipo de embarque</label>
+            <select id="asn-type"><option value="nacional">Nacional</option><option value="internacional">Internacional</option></select>
+          </div>
+          <div class="form-field"><label>Transportista</label><input id="asn-carrier" required /></div>
+          <div class="form-field"><label>RFC transportista</label><input id="asn-carrier-rfc" /></div>
+          <div class="form-field"><label>Placa vehículo</label><input id="asn-plate" /></div>
+          <div class="form-field"><label>Operador</label><input id="asn-driver" /></div>
+          <div class="form-field"><label>Pallets / bultos</label><input id="asn-pallets" type="number" min="0" value="0" /></div>
+          <div class="form-field"><label>Peso (kg)</label><input id="asn-weight" type="number" min="0" step="0.1" value="0" /></div>
+          <div class="form-field"><label>Fecha/hora de embarque</label><input id="asn-ship" type="datetime-local" /></div>
+          <div class="form-field"><label>ETA</label><input id="asn-eta" type="datetime-local" /></div>
+          <div class="form-field"><label>No. guía / BL / AWB</label><input id="asn-tracking" /></div>
+          <div class="form-field full"><label>Líneas a embarcar (se llenan desde la OC seleccionada)</label><div id="asn-lines"></div></div>
+          <div class="form-actions full"><button type="submit" class="btn btn-primary">Enviar ASN</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128230;</div>
+          <div><div class="card-title">Mis embarques</div></div>
+        </div>
+        <div id="asn-list"></div>
+      </div>
+    </div>
+
+    <!-- Carta Porte -->
+    <div id="cartaporte" class="section">
+      <div class="page-hdr">
+        <h1>Carta Porte (Complemento CFDI)</h1>
+        <p>Obligatoria ante el SAT para traslados nacionales por carretera. Captura los datos, el portal valida y timbra vía PAC antes del inicio del traslado.</p>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128652;</div>
+          <div><div class="card-title">Generar y timbrar Carta Porte</div><div class="card-sub">Solo para ASN de embarques nacionales</div></div>
+        </div>
+        <form id="cp-form" class="form-grid">
+          <div class="form-field"><label>ASN</label><select id="cp-asn" required></select></div>
+          <div class="form-field"><label>RFC transportista</label><input id="cp-carrier-rfc" required placeholder="ABC123456XY9" /></div>
+          <div class="form-field"><label>RFC operador</label><input id="cp-driver-rfc" /></div>
+          <div class="form-field"><label>Placa</label><input id="cp-plate" required /></div>
+          <div class="form-field"><label>Año vehículo</label><input id="cp-year" type="number" min="1990" max="2030" /></div>
+          <div class="form-field"><label>Config. vehicular (SCT)</label><input id="cp-config" placeholder="C2, T3S2..." /></div>
+          <div class="form-field full"><label>Dirección origen</label><input id="cp-origin" required /></div>
+          <div class="form-field full"><label>Dirección destino</label><input id="cp-dest" required /></div>
+          <div class="form-field"><label>Aseguradora</label><input id="cp-insurer" /></div>
+          <div class="form-field"><label>Póliza</label><input id="cp-policy" /></div>
+          <div class="form-actions full"><button type="submit" class="btn btn-primary">Validar y timbrar ante SAT</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128196;</div>
+          <div><div class="card-title">Cartas Porte emitidas</div></div>
+        </div>
+        <div id="cp-list"></div>
+      </div>
+    </div>
+
+    <!-- Documentos -->
+    <div id="documentos" class="section">
+      <div class="page-hdr">
+        <h1>Centro de Documentación de Pedidos</h1>
+        <p>Expediente digital por OC: packing list, certificados de calidad, pedimentos, BL/AWB y más. Natureganix revisa y aprueba cada documento.</p>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128228;</div>
+          <div><div class="card-title">Cargar documento</div></div>
+        </div>
+        <form id="doc-form" class="form-grid">
+          <div class="form-field"><label>Orden de compra</label><select id="doc-po" required></select></div>
+          <div class="form-field"><label>Tipo de documento</label>
+            <select id="doc-type">
+              <option value="packing_list">Packing List</option>
+              <option value="certificado_calidad">Certificado de Calidad</option>
+              <option value="cfdi_ingreso">CFDI Ingreso (PDF)</option>
+              <option value="carta_porte">Carta Porte (PDF)</option>
+              <option value="bl_awb">Bill of Lading / AWB</option>
+              <option value="pedimento">Pedimento</option>
+              <option value="permiso_sanitario">Permiso Sanitario / COFEPRIS</option>
+              <option value="nota_credito">Nota de Crédito</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+          <div class="form-field"><label>Archivo</label><input id="doc-file" type="file" required /></div>
+          <div class="form-actions full"><button type="submit" class="btn btn-primary">Cargar</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128193;</div>
+          <div><div class="card-title">Expediente digital</div></div>
+        </div>
+        <div id="doc-list"></div>
+      </div>
+    </div>
+
+    <!-- CFDI -->
+    <div id="cfdi" class="section">
+      <div class="page-hdr">
+        <h1>Gestión de CFDI</h1>
+        <p>Carga tus CFDI; el portal valida el folio fiscal, cruza contra la OC y el recibo de almacén (3-way match) y lo registra en Cuentas por Pagar de Business Central.</p>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128177;</div>
+          <div><div class="card-title">Registrar CFDI</div><div class="card-sub">Datos del XML timbrado ante el SAT</div></div>
+        </div>
+        <form id="cfdi-form" class="form-grid">
+          <div class="form-field full"><label>Folio fiscal (UUID)</label><input id="cfdi-uuid" required placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" /></div>
+          <div class="form-field"><label>Tipo</label>
+            <select id="cfdi-type">
+              <option value="ingreso">Ingreso (factura)</option>
+              <option value="egreso">Egreso (nota de crédito)</option>
+              <option value="traslado">Traslado</option>
+            </select>
+          </div>
+          <div class="form-field"><label>Orden de compra</label><select id="cfdi-po"></select></div>
+          <div class="form-field"><label>Serie-Folio</label><input id="cfdi-folio" /></div>
+          <div class="form-field"><label>Total</label><input id="cfdi-total" type="number" step="0.01" required /></div>
+          <div class="form-field"><label>Método de pago</label>
+            <select id="cfdi-method"><option value="PPD">PPD</option><option value="PUE">PUE</option></select>
+          </div>
+          <div class="form-actions full"><button type="submit" class="btn btn-primary">Validar y registrar</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128202;</div>
+          <div><div class="card-title">Mis CFDI</div></div>
+        </div>
+        <div id="cfdi-list"></div>
+      </div>
+    </div>
+
+    <!-- Estado de cuenta -->
+    <div id="cxp" class="section">
+      <div class="page-hdr">
+        <h1>Estado de Cuenta y Pagos</h1>
+        <p>Facturas registradas, estatus de pago, vencimientos y Complementos de Pago (REP) emitidos por Natureganix.</p>
+      </div>
+      <div class="ov-grid" id="cxp-kpis" style="margin-bottom:20px"></div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128184;</div>
+          <div><div class="card-title">Facturas y pagos</div></div>
+        </div>
+        <div id="cxp-list"></div>
+      </div>
+    </div>
+
+    <!-- API -->
+    <div id="api" class="section">
+      <div class="page-hdr">
+        <h1>API de Integración con ERP</h1>
+        <p>El portal expone una API REST para conectarse con Business Central u otro ERP: publicación de OC, consumo de ASN/CFDI, registro de pagos y webhooks de eventos en tiempo real.</p>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128268;</div>
+          <div><div class="card-title">Endpoints principales</div>
+          <div class="card-sub">Autenticación por header <code class="inline">X-API-Key</code> &middot; Documentación interactiva en <a href="/docs" target="_blank">/docs</a> (OpenAPI)</div></div>
+        </div>
+        <table class="status-table">
+          <thead><tr><th>Método</th><th>Endpoint</th><th>Uso desde el ERP</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge badge-warn">PUT</span></td><td><code class="inline">/api/erp/v1/vendors</code></td><td>Sincronizar maestro de proveedores</td></tr>
+            <tr><td><span class="badge badge-ok">POST</span></td><td><code class="inline">/api/erp/v1/purchase-orders</code></td><td>Publicar OC en el portal</td></tr>
+            <tr><td><span class="badge badge-info">GET</span></td><td><code class="inline">/api/erp/v1/purchase-orders?updated_since=...</code></td><td>Recuperar respuestas y fechas del proveedor</td></tr>
+            <tr><td><span class="badge badge-info">GET</span></td><td><code class="inline">/api/erp/v1/asn?pending=true</code></td><td>ASNs nuevos para crear recibos esperados en WMS</td></tr>
+            <tr><td><span class="badge badge-ok">POST</span></td><td><code class="inline">/api/erp/v1/asn/{id}/ack</code></td><td>Confirmar recibo esperado creado</td></tr>
+            <tr><td><span class="badge badge-info">GET</span></td><td><code class="inline">/api/erp/v1/cfdi?status=aprobada&amp;synced=false</code></td><td>CFDIs aprobados hacia Cuentas por Pagar</td></tr>
+            <tr><td><span class="badge badge-ok">POST</span></td><td><code class="inline">/api/erp/v1/payments</code></td><td>Registrar pago y publicar el REP</td></tr>
+            <tr><td><span class="badge badge-ok">POST</span></td><td><code class="inline">/api/erp/v1/webhooks</code></td><td>Suscripción a eventos (push, firmados HMAC-SHA256)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-icon">&#128276;</div>
+          <div><div class="card-title">Webhooks salientes</div><div class="card-sub">El portal notifica al ERP en cuanto el proveedor actúa</div></div>
+        </div>
+        <div class="pills">
+          <div class="pill"><strong>po.confirmed</strong>El proveedor aceptó la OC</div>
+          <div class="pill"><strong>po.rejected</strong>OC rechazada con motivo</div>
+          <div class="pill"><strong>po.change_requested</strong>Solicitud de modificación</div>
+          <div class="pill"><strong>po.date_confirmed / po.date_proposed</strong>Gestión de fechas de entrega</div>
+          <div class="pill"><strong>asn.created</strong>Nuevo embarque notificado</div>
+          <div class="pill"><strong>carta_porte.stamped</strong>Carta Porte timbrada (folio fiscal)</div>
+          <div class="pill"><strong>document.uploaded</strong>Documento cargado al expediente</div>
+          <div class="pill"><strong>cfdi.approved / cfdi.rejected</strong>Resultado del 3-way match</div>
+        </div>
+        <pre class="code-block"># Ejemplo: publicar una OC desde el ERP
+curl -X POST http://localhost:8000/api/erp/v1/purchase-orders \
+  -H "X-API-Key: erp_demo_bc_natureganix_2026" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "number": "OC-2026-0102",
+    "vendor_code": "PROV-001",
+    "requested_date": "2026-07-15",
+    "lines": [{"line_no": 1, "sku": "ORG-CHIA-25",
+               "description": "Chia organica 25kg",
+               "quantity": 10, "unit_price": 1850.0}]
+  }'</pre>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
